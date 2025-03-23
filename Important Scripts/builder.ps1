@@ -32,13 +32,13 @@ function Run-NodeScript {
         [string[]]$Arguments
     )
 
-    $nodePath = "node" # Or the full path to node.exe if needed
+    $nodePath = "node"
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo.FileName = $nodePath
 
-    # Handle script path with spaces by enclosing it in quotes
-    $scriptPathWithQuotes = "`"$ScriptPath`""
+    
+    $ScriptPath = "`"$ScriptPath`"" # Deal with spaces in the file path
 
     # Handle arguments with spaces by enclosing them in quotes
     $quotedArguments = $Arguments | ForEach-Object {
@@ -49,7 +49,7 @@ function Run-NodeScript {
         }
     }
 
-    $process.StartInfo.Arguments = @($scriptPathWithQuotes) + $quotedArguments
+    $process.StartInfo.Arguments = @($ScriptPath) + $quotedArguments
     $process.StartInfo.RedirectStandardOutput = $true
     $process.StartInfo.RedirectStandardError = $true
     $process.StartInfo.UseShellExecute = $false
@@ -64,7 +64,15 @@ function Run-NodeScript {
     $process.WaitForExit()
 
     if ($err) {
-        Write-Error $err
+        $errLines = $err -split "`r`n"
+        foreach ($line in $errLines) {
+            # JS sends both warnings and errors through the error channel, so look for a Warning prefix
+            if ($line.StartsWith("Warning: ")) {
+                Write-Warning $line.Substring(9)
+            } else {
+                Write-Error $line
+            }
+        }
     }
 
     return $output
@@ -109,7 +117,7 @@ while ($true) {
     # Execute each command
     $host.UI.RawUI.WindowTitle = "Building Graph"
     foreach ($command in $commands) {
-        Write-Host "Executing: $($command.Script) $($command.Arguments -join ' ')" -ForegroundColor Yellow
+        Write-Host "Executing: $($command.Script) $($command.Arguments -join ' ')" -ForegroundColor Gray
 
         # Use the Run-NodeScript function
         $output = Run-NodeScript -ScriptPath $command.Script -Arguments $command.Arguments
