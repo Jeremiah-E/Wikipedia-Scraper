@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Documentation</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        p {
+            margin-bottom: 10px;
+        }
+        code {
+            font-family: Consolas, monospace;
+            background-color: #f4f4f4;
+            padding: 2px 5px;
+            border-radius: 4px;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        a {
+            color: #007BFF;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        img {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Viewing the Graph</h1>
+    <p><em>All ps1 files mentioned are located in the folder <code>Important Scripts</code></em></p>
+    <p>Run <code>server.ps1</code> in PowerShell. While running, going to <a href="http://localhost:8000">https://localhost:8000</a> shows the graph. Running the server while the graph is building or empty will not break anything.</p>
+    <img src="localhostexample.png" alt="Example of builder.ps1 running">
+
+    <h1>Building / Editing the Graph</h1>
+    <p><em>All ps1 files mentioned are located in the folder <code>Important Scripts</code></em></p>
+    <p>Run <code>builder.ps1</code> to edit the JSON file. If you want to reset the graph, delete <code>graph.json</code>. If you want to change the starting Wikipedia article, edit the <code>"Wikipedia"</code> in <code>resetGraph.json</code>, line 2.</p>
+    <p>When running <code>builder.ps1</code>, it will ask you for a number. It will then loop through that many articles and log every link on their page.</p>
+    <img src="builderexample.png" alt="Example of builder.ps1 running">
+
+    <p>Here, the graph will now include <code>2002</code>, <code>Web_traffic</code>, <code>United_States</code>, <code>Japan</code>, and the <code>United_Kingdom</code>. If I load <a href="https://localhost:8000">localhost</a>, the graph will contain all five nodes, among those previously built. If you look at the image at the top of the page, you will see the <code>United States</code> article is present.</p>
+
+    <p><em>(While technically you <strong>could</strong> directly build it yourself by manually entering JSON code, having the <code>builder.ps1</code> file do it is infinitely easier, as each article often has hundreds of outgoing links. Just here, 6000 links were entered.)</em></p>
+
+    <h2>Warning</h2>
+    <p><strong>If you do not have Node JS or these modules, then the code will not run properly</strong></p>
+    <p>(These lines can be pasted into Powershell or Terminal, only run the first two lines if you don't have Node JS):</p>
+    <pre>
+winget install Schniz.fnm
+fnm install 22
+npm install graphology-communities-louvain
+npm install graphology
+npm install puppeteer
+npm install jsdom
+    </pre>
+
+</body>
+</html>
