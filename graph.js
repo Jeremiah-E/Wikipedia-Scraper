@@ -325,7 +325,7 @@ async function updateGraph() {
         console.log(`${colGrey}Note: ${arg - updatedTitles.length} were not done due to redirects, deadlinks, or a short input JSON${colReset}`);
     }
     const itemsToUpdate = Object.values(data).filter(item => item.Updates === 0).length;
-    console.log(`${itemsToUpdate} entries to update, ${Object.keys(data).length - itemsToUpdate} to go`);
+    console.log(`${itemsToUpdate} entries to update, ${itemsToUpdate - Object.keys(data).length} to go`);
 
     // Re-sort data for consistency. While un-neccesary, makes the JSON more human-readable with the downside of predictable order of article parsing
     data = Object.keys(data).sort().reduce((obj, key) => { 
