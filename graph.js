@@ -1,38 +1,70 @@
-process.stdout.setEncoding('utf8'); // Enables UTF-8 encoding for text outputted to PowerShell
-const arg = parseInt(process.argv[2], 10); // Second argument from console. First argument is this file
-const fs = require('fs');
-const { URL } = require('url');
-const puppeteer = require('puppeteer');
-const { JSDOM } = require('jsdom');
-const path = require('path');
-// ANSI escape codes to color console output
-const colBlue = "\x1b[34m";
-const colGrey = "\x1b[90m";
-const colGreen = "\x1b[92m";
-const colReset = "\x1b[39m";
+if (typeof process !== "undefined") { process.stdout.setEncoding('utf8'); } // Enables UTF-8 encoding for text outputted to PowerShell
+const arg = (typeof process !== "undefined" && process.argv && process.argv[2]) 
+    ? parseInt(process.argv[2], 10)  // Second argument from console. First argument is this file
+    : 0; // If no arg or used as a module, do nothing
+// Environment detection
+const isNode = typeof process !== "undefined" && process.versions && process.versions.node;
 
-const BATCH_SIZE = 5; // Max number of puppeteer instances scraping Wikipedia at once
+// Further defining depends on environment- is this Node JS or 
+let fs, URL, puppeteer, JSDOM, path;
+let colBlue, colGrey, colGreen, colReset = "";
+let BATCH_SIZE = 5;
+let filePath1, filePath2, filePath3;
+let data = {}, redirects = {}, deadlinks = [];
 
-// Pull data from either graph.json or resetGraph.json, prioritizing graph.json
-let filePath1 = path.join(__dirname, 'graph.json');
-let data = fs.existsSync(filePath1)
-  ? JSON.parse(fs.readFileSync(filePath1, 'utf-8'))
-  : JSON.parse(fs.readFileSync(path.join(__dirname, 'resetGraph.json'), 'utf-8'));
+// Load modules based on environment
+if (isNode) {
+    // Node.js-specific modules
+    fs = require('fs');
+    URL = require('url').URL;
+    puppeteer = require('puppeteer');
+    JSDOM = require('jsdom').JSDOM;
+    path = require('path');
 
-// Pull redirects from redirects.json or use an empty object as the default
-let filePath2 = path.join(__dirname, 'redirects.json');
-let redirectsFromFile = fs.existsSync(filePath2)
-  ? JSON.parse(fs.readFileSync(filePath2, 'utf-8'))
-  : {};
+    // ANSI escape codes for console output (only for Node.js)
+    colBlue = "\x1b[34m";
+    colGrey = "\x1b[90m";
+    colGreen = "\x1b[92m";
+    colReset = "\x1b[39m";
 
-// Pull dead links from deadlink.json or use an empty array as the default
-let filePath3 = path.join(__dirname, 'deadlinks.json');
-let deadlinks = fs.existsSync(filePath3)
-  ? JSON.parse(fs.readFileSync(filePath3, 'utf-8'))
-  : [];
+    // File paths
+    filePath1 = path.join(__dirname, 'graph.json');
+    filePath2 = path.join(__dirname, 'redirects.json');
+    filePath3 = path.join(__dirname, 'deadlinks.json');
 
-console.log(`Imported ${colGreen}${Object.keys(data).length}${colReset} nodes, ${colGreen}${Object.keys(redirectsFromFile).length}${colReset} redirects, and ${colGreen}${deadlinks.length}${colReset} dead links`);
+    // Read data from JSON files (only in Node.js)
+    data = fs.existsSync(filePath1)
+        ? JSON.parse(fs.readFileSync(filePath1, 'utf-8'))
+        : JSON.parse(fs.readFileSync(path.join(__dirname, 'resetGraph.json'), 'utf-8'));
 
+    redirects = fs.existsSync(filePath2)
+        ? JSON.parse(fs.readFileSync(filePath2, 'utf-8'))
+        : {};
+
+    deadlinks = fs.existsSync(filePath3)
+        ? JSON.parse(fs.readFileSync(filePath3, 'utf-8'))
+        : [];
+
+} else {
+    console.warn("graph.js was intended to run through Node. Several functions may be broken");
+    
+    // Load JSON files using D3.js
+    Promise.all([
+        d3.json("graph.json").catch(() => d3.json("resetGraph.json")), // Fallback to resetGraph.json
+        d3.json("redirects.json").catch(() => ({})), // Default to an empty object
+        d3.json("deadlinks.json").catch(() => ([])), // Default to an empty array
+    ]).then(([graphData, redirectsData, deadlinksData]) => {
+        data = graphData; window.data = data;
+        redirects = redirectsData; window.redirects = redirects;
+        deadlinks = deadlinksData; window.deadlinks = deadlinks;
+        console.log("JSON files loaded:", {data: window.data, redirects: window.redirectsFromFile, deadlinks: window.deadlinks});
+        console.log(`Imported ${Object.keys(data).length} nodes, ${Object.keys(redirects).length} redirects, and ${deadlinks.length} dead links`);
+    }).catch(error => console.error("Error loading JSON files:", error));
+}
+
+if (isNode) {
+    console.log(`Imported ${colGreen}${Object.keys(data).length}${colReset} nodes, ${colGreen}${Object.keys(redirects).length}${colReset} redirects, and ${colGreen}${deadlinks.length}${colReset} dead links`);
+}
 // Given a partial URL (everything after /wiki/), return a full URL, https:// and all
 function getWikiStr(url) {
     return `https://en.wikipedia.org/wiki/${url}`;
@@ -173,13 +205,13 @@ function resolveRedirect(link) {
       seen.add(resolved);
   
       let foundRedirect = false;
-      for (const target in redirectsFromFile) {
+      for (const target in redirects) {
         // If the target is the same as our current link, no change
         if (target === resolved) {
           // The current link is already canonical, so we don't change it.
           continue;
         }
-        const aliases = redirectsFromFile[target];
+        const aliases = redirects[target];
         if (aliases.includes(resolved)) {
           // Found a redirection, update and break to check for further redirects
           resolved = target;
@@ -205,6 +237,7 @@ async function fetchBatch(articles) {
 }
 
 async function updateGraph() {
+    if (arg == 0) { console.log("Argument of 0 recieved, not fetching articles"); return; }
     let articleNames = Object.keys(data)
         .sort((a, b) => data[a].Updates - data[b].Updates)
         .slice(0, arg);
@@ -244,12 +277,12 @@ async function updateGraph() {
 
         // If a redirect occurred, update redirectsFromFile
         if (articleName !== resolvedName) {
-            if (!redirectsFromFile[resolvedName]) {
-                redirectsFromFile[resolvedName] = [];
+            if (!redirects[resolvedName]) {
+                redirects[resolvedName] = [];
             }
             // Only add the alias if it isn't already in the list
-            if (!redirectsFromFile[resolvedName].includes(articleName)) {
-                redirectsFromFile[resolvedName].push(articleName);
+            if (!redirects[resolvedName].includes(articleName)) {
+                redirects[resolvedName].push(articleName);
             }
         }
 
@@ -297,23 +330,27 @@ async function updateGraph() {
 
     mergeData(newData);
 
-    // Remove dead links
-    deadlinks.forEach(deadLink => {
-        // Remove links to the dead link from other articles.
-        for (const key in data) {
-            if (data.hasOwnProperty(key)) { // avoid prototype pollution
-                const index = data[key].Links.indexOf(deadLink);
-                if (index > -1) {
-                    data[key].Links.splice(index, 1); // Remove the dead link
+    // Remove dead links, send error up pipeline if deadlinks is invalid
+    try {
+        deadlinks.forEach(deadLink => {
+            // Remove links to the dead link from other articles.
+            for (const key in data) {
+                if (data.hasOwnProperty(key)) { // avoid prototype pollution
+                    const index = data[key].Links.indexOf(deadLink);
+                    if (index > -1) {
+                        data[key].Links.splice(index, 1); // Remove the dead link
+                    }
                 }
             }
-        }
-        // Remove the dead link article itself from the data object.
-        delete data[deadLink];
-    });
+            // Remove the dead link article itself from the data object.
+            delete data[deadLink];
+        });
+    } catch (error) {
+        console.error(`Error with deadlinks: ${JSON.stringify(deadlinks)} - ${error.message}`);
+    }
 
     // For every canonical target, if an alias node exists in data, merge its contents.
-    for (const [target, aliases] of Object.entries(redirectsFromFile)) {
+    for (const [target, aliases] of Object.entries(redirects)) {
         aliases.forEach(alias => {
             // Strict (case-sensitive) check: merge only if the alias exactly matches.
             if (data[alias] && alias !== target) {
@@ -341,6 +378,11 @@ async function updateGraph() {
                 canonicalData[canonical].Links = [...new Set([...canonicalData[canonical].Links, ...data[key].Links])];
                 canonicalData[canonical].Updates = Math.max(canonicalData[canonical].Updates, data[key].Updates);
             }
+            canonicalData[canonical].Links = canonicalData[canonical].Links.map(link => {
+                const resolved = resolveRedirect(link);
+                if (link != resolved) {console.log(`Link: ${link} → Resolved: ${resolved}`);}
+                return resolved;
+            });
         }
         data = canonicalData;
     }
@@ -365,9 +407,26 @@ async function updateGraph() {
 
     // Write updated versions to all three files
     fs.writeFileSync(filePath1, JSON.stringify(data, null, 2), 'utf-8');
-    fs.writeFileSync(filePath2, JSON.stringify(redirectsFromFile, null, 2), 'utf-8');
+    fs.writeFileSync(filePath2, JSON.stringify(redirects, null, 2), 'utf-8');
     fs.writeFileSync(filePath3, JSON.stringify(deadlinks, null, 2), 'utf-8');
 }
 
 
 updateGraph();
+
+
+// If browser, let me run the functions in the console
+if (!isNode) {
+    // Functions
+    window.getWikiStr = getWikiStr;
+    window.getPartialURL = getPartialURL;
+    window.resolveHash = resolveHash;
+    window.isBlacklistedURL = isBlacklistedURL;
+    window.mergeData = mergeData;
+    window.safeString = safeString;
+    window.resolveRedirect = resolveRedirect;
+    // Variables
+    window.data = data;
+    window.redirects = redirects;
+    window.deadlinks = deadlinks;
+}

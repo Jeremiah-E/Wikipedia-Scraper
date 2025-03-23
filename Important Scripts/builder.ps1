@@ -32,13 +32,13 @@ function Run-NodeScript {
         [string[]]$Arguments
     )
 
-    $nodePath = "node"
+    $nodePath = "node" # Or the full path to node.exe if needed
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo.FileName = $nodePath
 
-    
-    $ScriptPath = "`"$ScriptPath`"" # Deal with spaces in the file path
+    # Handle script path with spaces by enclosing it in quotes
+    $scriptPathWithQuotes = "`"$ScriptPath`""
 
     # Handle arguments with spaces by enclosing them in quotes
     $quotedArguments = $Arguments | ForEach-Object {
@@ -49,7 +49,7 @@ function Run-NodeScript {
         }
     }
 
-    $process.StartInfo.Arguments = @($ScriptPath) + $quotedArguments
+    $process.StartInfo.Arguments = @($scriptPathWithQuotes) + $quotedArguments
     $process.StartInfo.RedirectStandardOutput = $true
     $process.StartInfo.RedirectStandardError = $true
     $process.StartInfo.UseShellExecute = $false
