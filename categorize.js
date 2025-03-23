@@ -5,10 +5,10 @@ const louvain = require('graphology-communities-louvain');
 const path = require('path');
 // Load the JSON data
 let filePath = path.join(__dirname, 'chart.json');
-const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+let data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
 
 // Create the graph
-const graph = new DirectedGraph();
+let graph = new DirectedGraph();
 
 // Add nodes
 data.nodes.forEach(node => {
@@ -17,8 +17,23 @@ data.nodes.forEach(node => {
 
 // Add directed edges
 data.links.forEach(link => {
-  graph.addDirectedEdge(link.source, link.target);
+  if (!graph.hasDirectedEdge(link.source, link.target)) {
+    graph.addDirectedEdge(link.source, link.target);
+  }
 });
+
+// Remove duplicate edges from the data. Ideally would be removed earlier, but dulplicates still make it here
+const uniqueLinks = [];
+const linkSet = new Set();
+
+data.links.forEach(link => {
+  const edgeKey = `${link.source}-${link.target}`;
+  if (!linkSet.has(edgeKey)) {
+    linkSet.add(edgeKey);
+    uniqueLinks.push(link);
+  }
+});
+data.links = uniqueLinks;
 
 // Run Louvain clustering
 louvain.assign(graph);
