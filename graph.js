@@ -98,9 +98,13 @@ function mergeData(newData) {
         if (!data[key]) {
             data[key] = value;
         } else {
-            data[key].Links = [...new Set([...data[key].Links, ...value.Links])];
+            // Filter out outdated links that were redirected
+            let updatedLinks = value.Links.map(link => resolveRedirect(link));
+
+            data[key].Links = [...new Set(updatedLinks)];
             data[key].Updates = Math.max(data[key].Updates, value.Updates);
             data[key].Category = 0;
+
             data[key].Title = [data[key].Title, value.Title].sort((a, b) => 
                 Object.values(data).filter(v => v.Title === a).length - 
                 Object.values(data).filter(v => v.Title === b).length
@@ -108,6 +112,7 @@ function mergeData(newData) {
         }
     }
 }
+
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
@@ -132,12 +137,37 @@ function safeString(str) {
 // and returns the canonical target if so. (It does not perform case-insensitive matching.)
 function resolveRedirect(link) {
     let resolved = link;
-    const seen = new Set();
+    let seen = new Set(); // List of links seen. If we hit the same link twice, we hit a loop
   
     // Loop until no more redirection is found or a cycle is detected
+
+    // Double or even triple redirects are rare and fixed by bots after a few hours, but a few hours window to
+    // hit a double redirect when going over 7m articles is bigger than I'd like it to be
     while (true) {
       if (seen.has(resolved)) {
         // Cycle detected, break to avoid an infinite loop
+        seen = [... seen]; // Convert to array
+        let str = "Warning: Circular redirect found\n";
+        // Really cool looking visualization of the links. If the code went up in flames, I might as well have fun coding how to show it did
+        let maxLength = Math.max(...seen.map(num => num.toString().length));
+        for (let i = 0; i < seen.length; i++) {
+            let numStr = getWikiStr(`${seen[i]}`); // Convert to string just in case, then full URL
+            let padding = " ".repeat(maxLength - seen[i].toString().length);
+            let isEven = seen.length % 2 === 0;
+            let extraSpace = (isEven && i === seen.length - 1) ? "" : "  ";
+    
+            if (i === 0) {
+                str += `╭►${numStr}${padding}─╮\n`;
+            } else if (i === seen.length - 1) {
+                str += `╰─${numStr}${padding}${extraSpace}◂╯\n`;
+            } else if (i % 2 === 1) {
+                str += `│ ${numStr}${padding}◂╯─╮\n`;
+            } else {
+                str += `│ ${numStr}${padding}─╮◂╯\n`;
+            }
+        }
+    
+        console.warn(str);
         break;
       }
       seen.add(resolved);
@@ -205,26 +235,25 @@ async function updateGraph() {
         // Given this template will only appear in "Wikipedia:" pages (already blacklisted, so will be removed elsewhere) and dead links, this makes a great indicator that *should* hold across all ~7 million pages
         if (doc.querySelector("#noarticletext")) {
             const deadLink = safeString(articleNames[index]);
-            console.warn(`Dead link detected: ${getPartialURL(deadLink)}`);
+            console.warn(`Warning: dead link detected: ${deadLink}`);
             if (!deadlinks.includes(deadLink)) {
                 deadlinks.push(deadLink); // Add to the dead links array
             }
             return; // Skip processing this article, preventing it from being added to the graph
         }
 
-        // If a redirect occurred, update redirectsFromFile (exact match)
+        // If a redirect occurred, update redirectsFromFile
         if (articleName !== resolvedName) {
             if (!redirectsFromFile[resolvedName]) {
                 redirectsFromFile[resolvedName] = [];
             }
-            // Only add the alias if it isn't already in the list (exact match)
+            // Only add the alias if it isn't already in the list
             if (!redirectsFromFile[resolvedName].includes(articleName)) {
                 redirectsFromFile[resolvedName].push(articleName);
             }
         }
 
-        // Store the correct title for both the requested and resolved names
-        titleDict[articleName] = pageTitle;
+        // Store the correct title
         titleDict[resolvedName] = pageTitle;
 
         // Process links and resolve redirects as we go.
