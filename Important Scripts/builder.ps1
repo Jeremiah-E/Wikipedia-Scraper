@@ -84,6 +84,7 @@ while ($true) {
     try {
         # Prompt the user with light green text for input
         Write-Host "Enter the number of articles to look up (or type 'exit' to quit): " -ForegroundColor DarkCyan -NoNewline
+        # Write-Host 10
         $n = Read-Host
 
         if ($n -eq "exit") {

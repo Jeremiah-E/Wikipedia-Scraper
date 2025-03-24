@@ -58,12 +58,12 @@ if (isNode) {
         redirects = redirectsData; window.redirects = redirects;
         deadlinks = deadlinksData; window.deadlinks = deadlinks;
         console.log("JSON files loaded:", {data: window.data, redirects: window.redirectsFromFile, deadlinks: window.deadlinks});
-        console.log(`Imported ${Object.keys(data).length} nodes, ${Object.keys(redirects).length} redirects, and ${deadlinks.length} dead links`);
+        console.log(`Imported ${Object.keys(data).length} nodes, ${Object.values(redirects).reduce((sum, array) => sum + array.length, 0)} redirects, and ${deadlinks.length} dead links`);
     }).catch(error => console.error("Error loading JSON files:", error));
 }
 
 if (isNode) {
-    console.log(`Imported ${colGreen}${Object.keys(data).length}${colReset} nodes, ${colGreen}${Object.keys(redirects).length}${colReset} redirects, and ${colGreen}${deadlinks.length}${colReset} dead links`);
+    console.log(`Imported ${colGreen}${Object.keys(data).length}${colReset} nodes, ${colGreen}${Object.values(redirects).reduce((sum, array) => sum + array.length, 0)}${colReset} redirects, and ${colGreen}${deadlinks.length}${colReset} dead links`);
 }
 // Given a partial URL (everything after /wiki/), return a full URL, https:// and all
 function getWikiStr(url) {
@@ -346,7 +346,7 @@ async function updateGraph() {
             delete data[deadLink];
         });
     } catch (error) {
-        console.error(`Error with deadlinks: ${JSON.stringify(deadlinks)} - ${error.message}`);
+        console.error(`Error with deadlink parsing: ${JSON.stringify(deadlinks)} - ${error.message}`);
     }
 
     // For every canonical target, if an alias node exists in data, merge its contents.
@@ -378,15 +378,29 @@ async function updateGraph() {
                 canonicalData[canonical].Links = [...new Set([...canonicalData[canonical].Links, ...data[key].Links])];
                 canonicalData[canonical].Updates = Math.max(canonicalData[canonical].Updates, data[key].Updates);
             }
-            canonicalData[canonical].Links = canonicalData[canonical].Links.map(link => {
+    
+            // Create a Set to store unique redirects
+            const printedRedirects = new Set();
+    
+            // Deduplicate and resolve each link
+            canonicalData[canonical].Links = [...new Set(canonicalData[canonical].Links)].map(link => {
                 const resolved = resolveRedirect(link);
-                if (link != resolved) {console.log(`Link: ${link} → Resolved: ${resolved}`);}
-                return resolved;
+                const redirectKey = `${link} → ${resolved}`;
+    
+                // Only log and store if this redirect hasn't been processed
+                if (link !== resolved && !printedRedirects.has(redirectKey)) {
+                    console.log(`New redirect found: ${colBlue}${link}${colReset} → ${colBlue}${resolved}${colReset}`);
+                    printedRedirects.add(redirectKey); // Add to Set
+                }
+    
+                return resolved; // Return resolved link
             });
         }
         data = canonicalData;
     }
     canonicalizeGraphData();
+    
+    
 
     // Selects the title of the parsed article to be the new page title. Not done previously to make this work in parallel
     let updatedTitles = Object.keys(newData).map(key => titleDict[key] || key);
@@ -397,7 +411,8 @@ async function updateGraph() {
     }
     const itemsToUpdate = Object.values(data).filter(item => item.Updates === 0).length;
     const objectTotal = Object.keys(data).length;
-    console.log(`${itemsToUpdate} entries to update, ${objectTotal - itemsToUpdate} done so far`);
+    let percentDone = ((objectTotal - itemsToUpdate) / objectTotal) * 100;
+    console.log(`${itemsToUpdate} entries to update, ${objectTotal - itemsToUpdate} done so far (${Math.floor(percentDone * 100)/100}%)`);
 
     // Re-sort data for consistency. While un-neccesary, makes the JSON more human-readable with the downside of predictable order of article parsing
     data = Object.keys(data).sort().reduce((obj, key) => { 
