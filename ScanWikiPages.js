@@ -1,6 +1,6 @@
 // If this gets used on another site, then change isAllowedUrl();
-
-const { join } = require('path');
+const { exec } = require('child_process'); // Used to recursively call this code if not enough articles are scanned
+const { join, resolve } = require('path');
 const { existsSync, readFileSync, writeFileSync } = require('fs');
 const { fileURLToPath } = require('url');
 const puppeteer = require('puppeteer');
@@ -11,6 +11,7 @@ const { JSDOM } = require("jsdom");
 const MAX_FREQUENCY = 7; // Only run up to this many times a second
 const BATCH_SIZE = 1;
 let numPagesToSearch = parseInt(process.argv[2] == null ? "0" : process.argv[2]);
+let toScan = numPagesToSearch; // numPagesToSearch shrinks if needed, so toScan has the original value
 const filePathRawData = join(__dirname, 'rawData.json');
 const altFilePathRawData = join(__dirname, 'resetData.json');
 const filePathRedirects = join(__dirname, 'redirects.json');
@@ -35,7 +36,7 @@ const colGreen = "\x1b[92m";
 const colReset = "\x1b[39m";
 
 console.log(`Imported ${colGreen}${Object.keys(graph).length}${colReset} node${plural(Object.keys(graph).length)}, ${colGreen}${Object.values(redirects).reduce((sum, array) => sum + array.length, 0)}${colReset} redirect${plural(Object.values(redirects).reduce((sum, array) => sum + array.length, 0))}, and ${colGreen}${deadlinks.length}${colReset} dead link${plural(deadlinks.length)}`);
-
+let inputNodeCount = Object.keys(graph).length;
 /**
  * Given a URL with a potential fragment, remove the fragment
  * @param {String | URL} url Either URL instance or string representing the full URL
@@ -269,5 +270,22 @@ let pagesToSearch = Object.entries(graph)  // Convert object to array of [key, v
     blacklist = [... new Set(blacklist)]; // Deduplicate blacklist
     // This file isn't needed, just felt curious about what links I discard
     writeFileSync(filePathBlackListedlinks, JSON.stringify(blacklist, null, 2), 'utf8');
+    // titles should have one value for every page scanned
     console.log(`Exported ${colGreen}${Object.keys(graph).length}${colReset} node${plural(Object.keys(graph).length)}, ${colGreen}${Object.values(redirects).reduce((sum, array) => sum + array.length, 0)}${colReset} redirect${plural(Object.values(redirects).reduce((sum, array) => sum + array.length, 0))}, and ${colGreen}${deadlinks.length}${colReset} dead link${plural(deadlinks.length)}`);
+    if (htmls.length < toScan) {
+        // Didn't scan enough articles, run the program again
+        const scanned = htmls.length;
+        const remaining = toScan - scanned;
+        console.log(`${colRed}Not enough articles scanned`);
+        console.log(`Scanned: ${scanned}/${toScan}. Executing file to scan ${remaining} more${colReset}`)
+        // Re-run the script with the remaining pages
+        exec(`node "${resolve(__filename)}" ${remaining}`, (error, stdout, stderr) => {
+            if (error) {
+                console.error(`${colRed}Error restarting script:${colReset}`, error);
+                return;
+            }
+            console.log(stdout);
+            if (stderr) console.error(stderr);
+        });
+    }
 })();
