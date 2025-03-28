@@ -5,6 +5,7 @@ $host.UI.RawUI.WindowTitle = "Graph Builder"
 $scriptDir = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Definition)
 # Allow for non-ASCII characters (Most notably, →, but since we're parsing Wikipedia, many articles have non-ASCII characters as well, such as Klaus_Töpfer)
 $OutputEncoding = [System.Text.Encoding]::UTF8
+# Debug log
 $logFilePath = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Definition) "debug.log"
 
 # Set the console output encoding to UTF-8
@@ -101,10 +102,9 @@ while ($true) {
     }
 
     # Define file paths
-    $file1 = Join-Path $scriptDir "graph.js"
-    $file2 = Join-Path $scriptDir "graphToChart.js"
+    $file1 = Join-Path $scriptDir "ScanWikiPages.js"
+    $file2 = Join-Path $scriptDir "ConvertRawDataToChart.js"
     $file3 = Join-Path $scriptDir "categorize.js"
-    $file4 = Join-Path $scriptDir "resetUpdates.js"
 
     # Create command queue
     $commands = @(
@@ -124,11 +124,11 @@ while ($true) {
         $output = Run-NodeScript -ScriptPath $command.Script -Arguments $command.Arguments
 
         # Write the output to the log file
-        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-        Add-Content -Path $logFilePath -Value "[$timestamp] Script: $($command.Script) $($command.Arguments -join ' ')"
-        Add-Content -Path $logFilePath -Value "[$timestamp] Output:"
-        Add-Content -Path $logFilePath -Value $output
-        Add-Content -Path $logFilePath -Value "---------------------------------------"
+        # $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+        # Add-Content -Path $logFilePath -Value "[$timestamp] Script: $($command.Script) $($command.Arguments -join ' ')"
+        # Add-Content -Path $logFilePath -Value "[$timestamp] Output:"
+        # Add-Content -Path $logFilePath -Value $output
+        # Add-Content -Path $logFilePath -Value "---------------------------------------"
 
         # Display the output in the console
         Write-Host $output
